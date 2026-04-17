@@ -1,0 +1,16 @@
+node_modules/
+build/
+dist/
+*.log
+.DS_Store
+.env
+.env.local
+.mcp.json
+.claude/settings.local.json
+
+# 로컬 캐시
+cache/
+*.sqlite
+*.db
+CORPCODE.xml
+CORPCODE.zip
