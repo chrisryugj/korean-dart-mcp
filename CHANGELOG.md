@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.4.0] - 2026-04-18
+
+첨부파일 마크다운화 — kordoc 엔진 통합. DART 뷰어 스크래핑으로 첨부파일 접근.
+
+### Added
+- **`get_attachments`** (16번째 도구): 공시 첨부파일(HWP/HWPX/PDF/DOCX/XLSX)을 목록 조회하거나 마크다운으로 추출. 두 모드:
+  - `mode="list"` — 첨부 목록만 (파일명·download_url·format 힌트). 빠르고 가벼움.
+  - `mode="extract"` — 지정 파일 다운로드 + kordoc.parse() → 마크다운 반환. `filename` 또는 `index` 로 지정. `truncate_at` 으로 상한.
+- DART 뷰어 HTML 스크래핑 패턴: `/dsaf001/main.do?rcpNo=...` → `node['dcmNo']` 추출 → `/pdf/download/main.do?rcp_no=&dcm_no=` → 첨부 테이블 파싱.
+
+### 의존성 추가
+- **`kordoc` ^2.4.0** — HWP/HWPX/PDF/DOCX/XLSX → 마크다운 통합 엔진 (korean-law-mcp 와 공유)
+- **`pdfjs-dist` ^4.10.38** — kordoc 의 PDF 파싱용 peer dep (DART 공시 첨부 중 PDF 가 다수)
+
+### Verified
+- 삼성전자 사업보고서(2024.03.12) → PDF 본문 추출 921,998 자 (3.7s, 2.2MB PDF → 마크다운)
+- 주요사항(자기주식취득결정 정정), 기타공시(사외이사 신고) 첨부 목록 조회 OK
+- 한계: 거래소공시(`pblntf_ty=I` / rcept_no 뒷 3자리가 800 계열) 일부는 뷰어 구조 달라 dcm_no 추출 실패 — 에러 메시지로 가이드
+
+### 설계 노트
+- OpenDART 표준 API 에는 첨부파일 직접 엔드포인트가 없음. OpenDartReader 도 동일 뷰어 스크래핑 방식 — 사실상 업계 표준.
+- HWP/PDF 원본을 LLM 이 직접 읽을 수 있게 됨 → 원본 공시 본문·증빙자료까지 분석 범위 확장.
+
 ## [0.3.0] - 2026-04-18
 
 P2 릴리스 — **15/15 도구 완성**. 3종 킬러 분석 도구로 기존 Python 래퍼 대비 차별화.

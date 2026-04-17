@@ -24,6 +24,7 @@ import { getCorporateEventTool } from "./get-corporate-event.js";
 import { insiderSignalTool } from "./insider-signal.js";
 import { disclosureAnomalyTool } from "./disclosure-anomaly.js";
 import { buffettQualitySnapshotTool } from "./buffett-quality-snapshot.js";
+import { getAttachmentsTool } from "./get-attachments.js";
 
 export type ToolContext = ToolCtx;
 export type ToolDefinition = ToolDef;
@@ -46,6 +47,7 @@ export type ToolDefinition = ToolDef;
  *  [x] 13. insider_signal                 [KILLER] 임원 매수·매도 클러스터
  *  [x] 14. disclosure_anomaly             [KILLER] 회계·거버넌스 이상 스코어
  *  [x] 15. buffett_quality_snapshot       [KILLER] N년 퀄리티 체크리스트
+ *  [x] 16. get_attachments                [v0.4.0] HWP/PDF 첨부 → 마크다운 (kordoc)
  */
 export const TOOL_REGISTRY: ToolDef[] = [
   resolveCorpCodeTool,
@@ -63,4 +65,5 @@ export const TOOL_REGISTRY: ToolDef[] = [
   insiderSignalTool,
   disclosureAnomalyTool,
   buffettQualitySnapshotTool,
+  getAttachmentsTool,
 ];

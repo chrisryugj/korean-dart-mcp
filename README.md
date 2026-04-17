@@ -1,6 +1,6 @@
 # korean-dart-mcp
 
-> OpenDART 83개 API → 15개 MCP 도구. 금융감독원 전자공시(DART)를 AI로 검색·조회·분석.
+> OpenDART 83개 API → 16개 MCP 도구. 금융감독원 전자공시(DART)를 AI로 검색·조회·분석.
 
 [![MIT License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
@@ -13,6 +13,7 @@
 - **enum 압축** — 정기보고서 29개·주요사항 36개를 `report_type`/`event_type` 파라미터로 단일화
 - **XBRL 원본 노출** — 재무제표 원본을 Claude에 바로 업로드해 임의 집계 가능
 - **애널리스트 프레임 3종** — raw 테이블이 아니라 LLM 이 해석 가능한 시그널/스코어/체크리스트 단위로 가공해 제공
+- **첨부파일 마크다운화** — HWP/HWPX/PDF/DOCX/XLSX 공시 첨부를 [kordoc](https://github.com/chrisryugj/kordoc) 엔진으로 변환해 LLM 이 본문을 직접 읽음
 
 ## 킬러 프롬프트 예시
 
@@ -27,6 +28,9 @@
 - "카카오 최근 3년 회계 리스크 스코어 뽑아줘 — 정정공시·감사인 교체·의견 종합" → `disclosure_anomaly`
 - "네이버 지난 10년 버핏식 퀄리티 체크리스트 돌려줘" → `buffett_quality_snapshot`
 - "LG에너지솔루션 2021년 이후 자본 이벤트 타임라인 전부" → `get_corporate_event(mode=timeline)`
+
+원문 분석:
+- "삼성전자 2023 사업보고서 PDF 본문 직접 읽어 리스크 요소 섹션 요약해줘" → `get_attachments(mode=extract)`
 
 ## 설치
 
@@ -69,7 +73,7 @@ npm 배포 후:
 }
 ```
 
-## 도구 목록 (15개 / 전부 완성)
+## 도구 목록 (16개)
 
 ### 기본 조회 (8)
 | # | 도구 | 용도 |
@@ -97,6 +101,11 @@ npm 배포 후:
 | 13 | `insider_signal` | 임원 매수/매도 클러스터 · `strong_buy_cluster` 등 시그널 |
 | 14 | `disclosure_anomaly` | 회계 리스크 0-100 스코어 (정정·감사인·의견·자본스트레스) |
 | 15 | `buffett_quality_snapshot` | N년 ROE·부채비율·CAGR + 버핏 체크리스트 4종 |
+
+### 원문 분석 (1)
+| # | 도구 | 용도 |
+|---|------|------|
+| 16 | `get_attachments` | 공시 첨부 HWP/PDF/DOCX/XLSX → 마크다운 (kordoc 엔진) |
 
 ## 개발
 
