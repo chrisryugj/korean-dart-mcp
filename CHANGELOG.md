@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.6.0] - 2026-04-18
+
+배치·비교 편의 — 2개 신규 도구 (17, 18번).
+
+### Added
+- **`list_recent_filings`** (17번째): 22개 공시 프리셋(자기주식 취득/처분, CB/BW/EB 발행, 유상증자, 합병/분할, 5% 대량보유, 사업/반기/분기보고서, 감사보고서, 정정공시, 부실/소송 등) 으로 최근 N일 공시 빠르게 배치 조회. `search_disclosures` 의 고수준 래퍼 — LLM 이 pblntf_ty + report_nm 키워드 조합을 매번 조립하는 실수 방지.
+- **`quality_compare`** (18번째): 기업 2~10개의 N년 퀄리티 지표(ROE·부채비율·매출/순이익 CAGR·버핏 체크리스트 통과 수) 병렬 수집 + 지표별 순위. 내부적으로 `buffett_quality_snapshot` 재활용.
+
+### Verified
+- 최근 30일 `treasury_buy` 62건, `cb_issue` 92건, `merger` 17건, `large_holding_5pct` 3000+ 정상 수집·필터
+- 삼성전자/SK하이닉스/LG전자 5년 비교: SK하이닉스 ROE 12.86%·순이익 CAGR 45.37%·3/4 통과, 삼성전자 저부채 29.94%·안정, LG전자 D/E 140%·0/4
+
+## [0.5.0] - 2026-04-18
+
+원문 커버리지 확장 — 거래소공시 graceful 처리, DART XML → 마크다운 파서, ZIP 재귀 파싱.
+
+### Added
+- **DART XML → 마크다운 파서** (`src/lib/dart-xml.ts`): DART 전용 XML 마크업(`dart4.xsd`)을 자체 파싱해 heading·테이블 보존된 마크다운으로 변환. `@xmldom/xmldom` 기반.
+- **`download_document` format 파라미터**: `markdown` (기본) / `raw` / `text`. 기존 raw XML 텍스트만 반환에서 확장 — LLM 이 사업보고서 원문을 헤딩·표 구조로 바로 읽음.
+- **`get_attachments` ZIP 재귀 파싱**: ZIP 첨부를 `zip_index` 지정으로 내부 파일 kordoc 파싱. XBRL ZIP 은 `get_xbrl` 로 안내.
+- **`get_attachments` 거래소공시 graceful 처리**: `pblntf_ty=I` 일부 공시는 DART 뷰어에 `dcm_no` 내재되지 않음 → `supported: false` + `unsupported_reason` + 대안 도구 제안으로 명확한 실패. throw 없이 LLM 이 바로 폴백 가능.
+
+### Verified
+- 삼성전자 자기주식 결정 공시 원본 31k 자 → 마크다운 1.9k 자 (heading·테이블 보존)
+- 거래소공시 `20241223800004` → `supported: false, reason: 뷰어에 dcm_no 없음, 대안: download_document`
+- XBRL ZIP extract → `get_xbrl` 안내 메시지 반환
+
+### 설계 노트
+- DART XML 파서는 완전판이 아님. 주요 태그 (`SECTION-n`, `TITLE`, `TABLE`, `P`, `TABLE-GROUP`, `PGBRK`) 만 대응. 병합 셀(COLSPAN) 은 마크다운 포맷이 지원 안해 무시.
+- 거래소공시(pblntf_ty=I 일부) 는 구조적으로 첨부 접근 불가 — OpenDartReader 도 동일 한계.
+
 ## [0.4.0] - 2026-04-18
 
 첨부파일 마크다운화 — kordoc 엔진 통합. DART 뷰어 스크래핑으로 첨부파일 접근.

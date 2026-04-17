@@ -1,6 +1,6 @@
 {
   "name": "korean-dart-mcp",
-  "version": "0.4.0",
+  "version": "0.6.0",
   "description": "OpenDART 83개 API → 15개 MCP 도구. 금융감독원 전자공시(DART)를 AI로 검색·조회·분석",
   "type": "module",
   "main": "build/index.js",

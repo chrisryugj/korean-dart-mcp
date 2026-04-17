@@ -14,6 +14,7 @@
  */
 
 import { z } from "zod";
+import yauzl from "yauzl";
 import { parse as kordocParse } from "kordoc";
 import { defineTool } from "./_helpers.js";
 
@@ -47,6 +48,14 @@ const Input = z
       .min(1000)
       .default(100_000)
       .describe("extract 마크다운 최대 길이"),
+    zip_index: z
+      .number()
+      .int()
+      .min(0)
+      .optional()
+      .describe(
+        "ZIP 첨부 extract 시 내부 파일 index (0-based). 미지정 & ZIP 인 경우 내부 파일 목록만 반환.",
+      ),
   })
   .refine(
     (v) => v.mode !== "extract" || v.filename !== undefined || v.index !== undefined,
@@ -116,19 +125,65 @@ async function fetchBinary(url: string): Promise<Buffer> {
   return Buffer.from(await res.arrayBuffer());
 }
 
-async function listAttachments(rcept_no: string): Promise<{
-  dcm_no: string;
+interface ZipEntry {
+  name: string;
+  data: Buffer;
+}
+
+function extractZipEntries(buf: Buffer): Promise<ZipEntry[]> {
+  return new Promise((resolve, reject) => {
+    yauzl.fromBuffer(buf, { lazyEntries: true }, (err, zip) => {
+      if (err || !zip) return reject(err ?? new Error("zip open failed"));
+      const files: ZipEntry[] = [];
+      zip.on("entry", (entry: yauzl.Entry) => {
+        if (/\/$/.test(entry.fileName)) {
+          zip.readEntry();
+          return;
+        }
+        zip.openReadStream(entry, (err2, stream) => {
+          if (err2 || !stream) return reject(err2 ?? new Error("stream open failed"));
+          const chunks: Buffer[] = [];
+          stream.on("data", (c: Buffer) => chunks.push(c));
+          stream.on("end", () => {
+            files.push({ name: entry.fileName, data: Buffer.concat(chunks) });
+            zip.readEntry();
+          });
+          stream.on("error", reject);
+        });
+      });
+      zip.on("end", () => resolve(files));
+      zip.on("error", reject);
+      zip.readEntry();
+    });
+  });
+}
+
+interface ListResult {
+  dcm_no: string | null;
   viewer_url: string;
-  download_page_url: string;
+  download_page_url: string | null;
   attachments: Attachment[];
-}> {
+  supported: boolean;
+  unsupported_reason?: string;
+}
+
+async function listAttachments(rcept_no: string): Promise<ListResult> {
   const viewerUrl = `${DART_ORIGIN}/dsaf001/main.do?rcpNo=${rcept_no}`;
   const viewerHtml = await fetchHtml(viewerUrl);
   const dcm_no = extractDcmNo(viewerHtml, rcept_no);
   if (!dcm_no) {
-    throw new Error(
-      `뷰어에서 dcm_no 추출 실패. 비공개 문서이거나 구조가 바뀌었을 수 있음: ${viewerUrl}`,
-    );
+    // 거래소공시(pblntf_ty=I) 등 일부는 DART 뷰어에 dcm_no 가 내재되지 않아
+    // 첨부파일 다운로드 링크 자체가 존재하지 않는다. DART 표준 API·스크래핑 모두
+    // 접근 불가. 본문 텍스트가 필요하면 download_document 로 원문 XML 조회.
+    return {
+      dcm_no: null,
+      viewer_url: viewerUrl,
+      download_page_url: null,
+      attachments: [],
+      supported: false,
+      unsupported_reason:
+        "DART 뷰어에 dcm_no 가 내재되지 않음 (거래소공시 등). 첨부 직접 접근 불가. 대안: download_document(rcept_no) 로 원문 XML 조회.",
+    };
   }
   const dlPageUrl = `${DART_ORIGIN}/pdf/download/main.do?rcp_no=${rcept_no}&dcm_no=${dcm_no}`;
   const dlHtml = await fetchHtml(dlPageUrl);
@@ -139,7 +194,13 @@ async function listAttachments(rcept_no: string): Promise<{
     download_url: r.href.startsWith("http") ? r.href : `${DART_ORIGIN}${r.href}`,
     format: detectFormat(r.filename),
   }));
-  return { dcm_no, viewer_url: viewerUrl, download_page_url: dlPageUrl, attachments };
+  return {
+    dcm_no,
+    viewer_url: viewerUrl,
+    download_page_url: dlPageUrl,
+    attachments,
+    supported: true,
+  };
 }
 
 export const getAttachmentsTool = defineTool({
@@ -155,11 +216,26 @@ export const getAttachmentsTool = defineTool({
     if (args.mode === "list") {
       return {
         rcept_no: args.rcept_no,
+        supported: info.supported,
         dcm_no: info.dcm_no,
         viewer_url: info.viewer_url,
         download_page_url: info.download_page_url,
         count: info.attachments.length,
         attachments: info.attachments,
+        unsupported_reason: info.unsupported_reason ?? null,
+      };
+    }
+
+    if (!info.supported) {
+      return {
+        rcept_no: args.rcept_no,
+        supported: false,
+        viewer_url: info.viewer_url,
+        unsupported_reason: info.unsupported_reason,
+        suggestion: {
+          tool: "download_document",
+          args: { rcept_no: args.rcept_no, format: "markdown" },
+        },
       };
     }
 
@@ -186,17 +262,102 @@ export const getAttachmentsTool = defineTool({
       throw new Error("extract 모드엔 filename 또는 index 필수");
     }
 
-    if (target.format === "zip" || target.format === "unknown") {
+    if (target.format === "unknown") {
       return {
         rcept_no: args.rcept_no,
         filename: target.filename,
         format: target.format,
         download_url: target.download_url,
         supported: false,
-        note:
-          target.format === "zip"
-            ? "XBRL 등 ZIP 첨부는 get_xbrl 또는 download_document 로 처리. kordoc 파싱 미지원."
-            : "확장자로 포맷 판별 실패. download_url 로 직접 받아 확인.",
+        note: "확장자로 포맷 판별 실패. download_url 로 직접 받아 확인.",
+      };
+    }
+
+    if (target.format === "zip") {
+      // XBRL ZIP 은 전용 get_xbrl 로 처리하는 게 적절
+      if (/XBRL/i.test(target.filename)) {
+        return {
+          rcept_no: args.rcept_no,
+          filename: target.filename,
+          format: "zip",
+          download_url: target.download_url,
+          supported: false,
+          note: "XBRL ZIP 은 get_xbrl(rcept_no) 로 조회 — 파싱된 재무제표 + 원본 파일 경로 제공.",
+        };
+      }
+      const zipBuf = await fetchBinary(target.download_url);
+      const innerFiles = await extractZipEntries(zipBuf);
+      const parsable = innerFiles
+        .map((f, i) => ({ ...f, index: i, format: detectFormat(f.name) }))
+        .filter((f) => f.format !== "zip" && f.format !== "unknown");
+
+      if (args.zip_index === undefined) {
+        return {
+          rcept_no: args.rcept_no,
+          filename: target.filename,
+          format: "zip",
+          download_url: target.download_url,
+          size_bytes: zipBuf.length,
+          zip_mode: "list",
+          total_entries: innerFiles.length,
+          parsable_count: parsable.length,
+          entries: parsable.map((f) => ({
+            index: f.index,
+            name: f.name,
+            size_bytes: f.data.length,
+            format: f.format,
+          })),
+          note: "zip_index 를 지정하면 해당 파일을 kordoc 으로 파싱한다.",
+        };
+      }
+
+      const inner = innerFiles[args.zip_index];
+      if (!inner) {
+        throw new Error(
+          `zip_index 범위 초과: ${args.zip_index} (ZIP 내부 ${innerFiles.length}개)`,
+        );
+      }
+      const innerFmt = detectFormat(inner.name);
+      if (innerFmt === "unknown" || innerFmt === "zip") {
+        return {
+          rcept_no: args.rcept_no,
+          filename: target.filename,
+          zip_inner_filename: inner.name,
+          zip_inner_format: innerFmt,
+          size_bytes: inner.data.length,
+          supported: false,
+          note: "내부 파일이 ZIP 또는 알 수 없는 포맷. 재귀 파싱 미지원.",
+        };
+      }
+      const innerSize = inner.data.length;
+      const innerParsed = await kordocParse(inner.data);
+      if (!innerParsed.success) {
+        return {
+          rcept_no: args.rcept_no,
+          filename: target.filename,
+          zip_inner_filename: inner.name,
+          zip_inner_format: innerFmt,
+          size_bytes: innerSize,
+          supported: false,
+          error: innerParsed.error,
+          error_code: innerParsed.code,
+        };
+      }
+      const innerMd = innerParsed.markdown ?? "";
+      const innerTruncated = innerMd.length > args.truncate_at;
+      return {
+        rcept_no: args.rcept_no,
+        filename: target.filename,
+        zip_inner_filename: inner.name,
+        zip_inner_format: innerFmt,
+        file_type_detected: innerParsed.fileType,
+        size_bytes: innerSize,
+        char_count: innerMd.length,
+        truncated: innerTruncated,
+        markdown: innerTruncated ? innerMd.slice(0, args.truncate_at) : innerMd,
+        warnings: innerParsed.warnings ?? [],
+        outline: innerParsed.outline ?? null,
+        metadata: innerParsed.metadata ?? null,
       };
     }
 

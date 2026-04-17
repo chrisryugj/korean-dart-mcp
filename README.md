@@ -1,6 +1,6 @@
 # korean-dart-mcp
 
-> OpenDART 83개 API → 16개 MCP 도구. 금융감독원 전자공시(DART)를 AI로 검색·조회·분석.
+> OpenDART 83개 API → 18개 MCP 도구. 금융감독원 전자공시(DART)를 AI로 검색·조회·분석.
 
 [![MIT License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
@@ -28,9 +28,15 @@
 - "카카오 최근 3년 회계 리스크 스코어 뽑아줘 — 정정공시·감사인 교체·의견 종합" → `disclosure_anomaly`
 - "네이버 지난 10년 버핏식 퀄리티 체크리스트 돌려줘" → `buffett_quality_snapshot`
 - "LG에너지솔루션 2021년 이후 자본 이벤트 타임라인 전부" → `get_corporate_event(mode=timeline)`
+- "삼성전자·SK하이닉스·LG전자 5년 퀄리티 비교 + 순위" → `quality_compare`
 
 원문 분석:
 - "삼성전자 2023 사업보고서 PDF 본문 직접 읽어 리스크 요소 섹션 요약해줘" → `get_attachments(mode=extract)`
+- "삼성전자 자기주식 취득 결정 원본 텍스트 마크다운으로 줘" → `download_document(format=markdown)`
+
+배치 조회:
+- "최근 7일 자기주식 취득 결정 상장사 전부" → `list_recent_filings(preset=treasury_buy)`
+- "최근 30일 전환사채 발행 공시 배치 조회" → `list_recent_filings(preset=cb_issue, days=30)`
 
 ## 설치
 
@@ -73,7 +79,7 @@ npm 배포 후:
 }
 ```
 
-## 도구 목록 (16개)
+## 도구 목록 (18개)
 
 ### 기본 조회 (8)
 | # | 도구 | 용도 |
@@ -82,7 +88,7 @@ npm 배포 후:
 | 2 | `search_disclosures` | 공시 검색 (10개 `kind` enum) |
 | 3 | `get_company` | 기업 개황 |
 | 4 | `get_financials` | 단일/다중 주요계정 |
-| 5 | `download_document` | 공시 원문 XML |
+| 5 | `download_document` | 공시 원문 → 마크다운/raw/text (DART XML 자체 파서) |
 | 6 | `get_full_financials` | 전체 재무제표 + 지표 |
 | 7 | `get_xbrl` | XBRL 원본 + 택사노미 |
 | 8 | `get_periodic_report` | 정기보고서 29개 섹션 (`report_type` enum) |
@@ -105,7 +111,13 @@ npm 배포 후:
 ### 원문 분석 (1)
 | # | 도구 | 용도 |
 |---|------|------|
-| 16 | `get_attachments` | 공시 첨부 HWP/PDF/DOCX/XLSX → 마크다운 (kordoc 엔진) |
+| 16 | `get_attachments` | 공시 첨부 HWP/PDF/DOCX/XLSX → 마크다운 (kordoc) + ZIP 재귀 파싱 |
+
+### 배치·비교 (2)
+| # | 도구 | 용도 |
+|---|------|------|
+| 17 | `list_recent_filings` | 22개 프리셋(자기주식·CB·합병·정정공시 등) 으로 최근 N일 배치 조회 |
+| 18 | `quality_compare` | 기업 2~10개 N년 퀄리티 지표 비교 + 지표별 순위 |
 
 ## 개발
 
