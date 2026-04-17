@@ -12,9 +12,9 @@
 
 ---
 
-## v0.7.0 — Python 래퍼가 못 하는 것을 한다
+## v0.7.0 — LLM 네이티브 분석 레이어
 
-기존 Python 래퍼([OpenDartReader](https://github.com/FinanceData/OpenDartReader), [dart-fss](https://github.com/josw123/dart-fss))는 **raw 테이블만** 반환합니다. 이 프로젝트는 DART 83 API 를 LLM 이 **스토리로 해석 가능한 분석 프레임**으로 가공합니다.
+DART 83 API 를 LLM 이 **스토리로 해석 가능한 분석 프레임**으로 가공해서 넘깁니다. 아래는 대표적인 네 가지 사용 시나리오.
 
 ### 버핏·그레이엄 관점 정량화
 
@@ -79,9 +79,14 @@ DART XML 원문(`download_document(format=markdown)`) 도 자체 파서로 headi
 
 ## 왜 만들었나
 
-한국 상장사 약 3,000개의 공시·재무가 [DART](https://dart.fss.or.kr) 한 곳에 모여 있지만, Python pandas 래퍼(438⭐/364⭐)들은 **DataFrame 을 반환**합니다. LLM 시대에는 이게 오히려 병목입니다 — AI 는 DataFrame 을 다시 해석해야 하고, 도메인 지식이 없으면 숫자만 나열하게 됩니다.
+한국 상장사 약 3,000개의 공시·재무가 [DART](https://dart.fss.or.kr) 한 곳에 모여 있지만, 개발자가 쓰려면 83개 엔드포인트를 직접 조합해야 합니다. 다행히 한국 개발자 생태계에는 [OpenDartReader](https://github.com/FinanceData/OpenDartReader)(438⭐) 와 [dart-fss](https://github.com/josw123/dart-fss)(364⭐) 라는 훌륭한 Python 래퍼가 있어, **엔드포인트 매핑·XBRL 파싱 노하우가 이미 정리돼 있습니다**. 이 프로젝트도 그 매핑을 상당 부분 그대로 수용했습니다.
 
-이 프로젝트는 **LLM 에 필요한 것은 raw 가 아니라 프레임**이라는 가정에서 출발합니다. 버핏 체크리스트·내부자 시그널·회계 리스크 스코어·공시 타임라인 등 **전문가가 쓰는 각도**로 데이터를 정제해 넘기면, LLM 은 즉시 스토리를 만듭니다.
+이 프로젝트는 두 래퍼가 커버하지 못하는 **다른 레이어**를 목표로 합니다:
+
+- **pandas 생태계용** — OpenDartReader / dart-fss. DataFrame 으로 분석가가 직접 핸들링.
+- **LLM 네이티브용** — 이 프로젝트. raw 테이블을 **전문가가 쓰는 각도**(버핏 체크리스트·내부자 시그널·회계 리스크 스코어·공시 타임라인·마크다운 원문)로 한 번 더 정제해, AI 어시스턴트가 바로 스토리를 만들 수 있게 합니다.
+
+둘은 **보완 관계**입니다. DataFrame 이 필요하면 Python 래퍼, AI 에이전트용 프레임이 필요하면 이 MCP.
 
 ---
 
@@ -239,7 +244,7 @@ npm install -g korean-dart-mcp
 
 - **83 API → 15 도구** — OpenDART 전체(공시·재무·지분·주요사항·정기보고서·XBRL) 를 enum 압축. LLM 컨텍스트 8-10k → 6-8k 토큰
 - **회사명 자동 해결** — "삼성전자" / "005930" / "00126380" 어느 형식이든 자동 변환 (SQLite FTS 선적재, 24h TTL)
-- **버핏급 애널리스트 프레임** — 기존 Python 래퍼가 raw DataFrame 만 주는 영역을 **시그널/스코어/체크리스트**로 가공
+- **버핏급 애널리스트 프레임** — raw 테이블 위에 **시그널/스코어/체크리스트** 레이어를 얹어 AI 에이전트가 바로 쓰도록 가공
 - **HWP/PDF 첨부 마크다운화** — [kordoc](https://github.com/chrisryugj/kordoc) 엔진으로 공시 원문 본문을 LLM 이 직접 읽음 (2.2MB PDF → 3.7초)
 - **DART XML 자체 파서** — `dart4.xsd` 전용 마크업을 heading·테이블 보존된 마크다운으로 변환
 - **페이지 병렬화** — `search_disclosures` 배치 모드 30-50초 → 17초 (2-3배)
