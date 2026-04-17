@@ -48,6 +48,15 @@ const Input = z
       .min(1000)
       .default(100_000)
       .describe("extract 마크다운 최대 길이"),
+    outline_max_items: z
+      .number()
+      .int()
+      .min(0)
+      .max(500)
+      .default(50)
+      .describe(
+        "outline(목차) 최대 항목 수. 사업보고서 outline 은 수천 개 → 디폴트 50. 0=outline 생략.",
+      ),
     zip_index: z
       .number()
       .int()
@@ -212,6 +221,19 @@ export const getAttachmentsTool = defineTool({
   input: Input,
   handler: async (_ctx, args) => {
     const info = await listAttachments(args.rcept_no);
+    // outline 잘라내기 헬퍼 — 사업보고서 PDF 는 수천 항목 outline 이라 응답 폭발
+    const truncOutline = (
+      o: unknown,
+    ): { items: unknown; total: number; truncated: boolean } | null => {
+      if (!o) return null;
+      if (!Array.isArray(o)) return { items: o, total: 1, truncated: false };
+      const total = o.length;
+      if (args.outline_max_items === 0) {
+        return { items: [], total, truncated: total > 0 };
+      }
+      const items = o.slice(0, args.outline_max_items);
+      return { items, total, truncated: total > args.outline_max_items };
+    };
 
     if (args.mode === "list") {
       return {
@@ -356,7 +378,7 @@ export const getAttachmentsTool = defineTool({
         truncated: innerTruncated,
         markdown: innerTruncated ? innerMd.slice(0, args.truncate_at) : innerMd,
         warnings: innerParsed.warnings ?? [],
-        outline: innerParsed.outline ?? null,
+        outline: truncOutline(innerParsed.outline),
         metadata: innerParsed.metadata ?? null,
       };
     }
@@ -392,7 +414,7 @@ export const getAttachmentsTool = defineTool({
       truncated,
       markdown: truncated ? md.slice(0, args.truncate_at) : md,
       warnings: parsed.warnings ?? [],
-      outline: parsed.outline ?? null,
+      outline: truncOutline(parsed.outline),
       metadata: parsed.metadata ?? null,
     };
   },

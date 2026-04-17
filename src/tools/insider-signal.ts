@@ -26,6 +26,15 @@ const Input = z.object({
     .min(2)
     .default(3)
     .describe("cluster 인정 최소 인원 (기본 3: 분기 내 같은 방향 거래 3명 이상)"),
+  reporters_topn: z
+    .number()
+    .int()
+    .min(0)
+    .max(50)
+    .default(5)
+    .describe(
+      "분기별 reporters 명단 상위 N (절대값 큰 순). 대형사는 분기당 수백명 → 디폴트 5. 0=빈 배열.",
+    ),
 });
 
 interface ElestockItem {
@@ -155,13 +164,20 @@ export const insiderSignalTool = defineTool({
             : sellers_n >= args.cluster_threshold && sellers_n > buyers_n
               ? "sell_cluster"
               : "mixed_or_thin";
+        // reporters 는 |change| 큰 순 상위 N 만 (대형사 폭발 방지)
+        const sortedReporters = [...agg.reporters].sort(
+          (a, b) => Math.abs(b.change) - Math.abs(a.change),
+        );
+        const topReporters = sortedReporters.slice(0, args.reporters_topn);
         return {
           quarter,
           buyers: buyers_n,
           sellers: sellers_n,
           net_change: agg.netChange,
           cluster: direction,
-          reporters: agg.reporters,
+          reporters_total: agg.reporters.length,
+          reporters_truncated: agg.reporters.length > args.reporters_topn,
+          reporters: topReporters,
         };
       })
       .sort((a, b) => b.quarter.localeCompare(a.quarter));

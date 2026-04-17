@@ -49,6 +49,14 @@ const Input = z
       .enum(["consolidated", "separate"])
       .default("consolidated")
       .describe("scope=full 시 연결(consolidated)/별도(separate) 선택"),
+    sj_div: z
+      .array(z.enum(["BS", "IS", "CF", "CIS", "SCE"]))
+      .optional()
+      .describe(
+        "scope=full 시 재무제표 종류 필터 (미지정 시 BS+IS — 기본 응답 사이즈 ~70% 절감). " +
+          "BS=재무상태표, IS=손익계산서, CF=현금흐름표, CIS=포괄손익계산서, SCE=자본변동표. " +
+          "전체 받으려면 [\"BS\",\"IS\",\"CF\",\"CIS\",\"SCE\"] 명시.",
+      ),
   })
   .refine((v) => v.scope !== "full" || v.corps.length === 1, {
     message: "scope=full 은 corps 1개만 지원 (다중사 전체 재무제표 API 없음)",
@@ -81,14 +89,20 @@ export const getFinancialsTool = defineTool({
       if (raw.status !== "000") {
         throw new Error(`DART 응답 오류 [${raw.status}]: ${raw.message}`);
       }
+      const allItems = raw.list ?? [];
+      const filterDivs: ReadonlyArray<string> = args.sj_div ?? ["BS", "IS"];
+      const filterSet = new Set<string>(filterDivs);
+      const items = allItems.filter((it) => filterSet.has(String(it.sj_div)));
       return {
         mode: "full",
         resolved: records,
         year: args.year,
         report: args.report,
         fs: args.fs,
-        count: raw.list?.length ?? 0,
-        items: raw.list ?? [],
+        sj_div_filter: filterDivs,
+        total_count: allItems.length,
+        count: items.length,
+        items,
       };
     }
 

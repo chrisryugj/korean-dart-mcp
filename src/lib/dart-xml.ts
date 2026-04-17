@@ -48,10 +48,39 @@ const SECTION_DEPTH: Record<string, number> = {
 };
 
 export function dartXmlToMarkdown(xml: string): string {
-  const doc = new DOMParser().parseFromString(xml, "text/xml") as any;
+  // DART XML 은 일부 엔트리에 한글 태그(`<이사ㆍ감사>`) 가 텍스트가 아닌 마크업으로
+  // 들어가 있어 xmldom 의 well-formedness 검사가 ParseError 로 fatal-throw 한다.
+  // xmldom errorHandler 옵션은 warning/error 만 silence 가능하고 fatalError 는 throw 됨.
+  // → 비-ASCII 로 시작하는 태그는 모두 entity escape 해서 텍스트로 강등시킨다.
+  const sanitized = sanitizeNonAsciiTags(xml);
+  const silentHandler = () => {};
+  let doc: any;
+  try {
+    doc = new DOMParser({ errorHandler: silentHandler }).parseFromString(sanitized, "text/xml") as any;
+  } catch {
+    // 그래도 실패 시 text/html 모드 (xmldom 이 더 관대)
+    try {
+      doc = new DOMParser({ errorHandler: silentHandler }).parseFromString(sanitized, "text/html") as any;
+    } catch {
+      return "";
+    }
+  }
   const root = doc?.documentElement;
   if (!root) return "";
   return convertNode(root, 1).replace(/\n{3,}/g, "\n\n").trim();
+}
+
+/**
+ * `<한글태그>...</한글태그>` 같은 비-ASCII 태그를 entity escape 해서 텍스트로 만든다.
+ * XML 표준 NameStartChar 는 유니코드를 허용하지만 DART 의 한글 태그는 닫는 태그가
+ * 누락된 경우가 있어 well-formedness 가 깨진다.
+ */
+function sanitizeNonAsciiTags(xml: string): string {
+  // 1. CDATA 섹션은 보호 (변환 대상 아님)
+  // 2. `<` 다음 첫 문자가 ASCII letter / `?` / `!` / `/` 가 아니면 entity escape
+  return xml.replace(/<\/?[^\x00-\x7F][^<>]*>/g, (m) =>
+    m.replace(/</g, "&lt;").replace(/>/g, "&gt;"),
+  );
 }
 
 function convertNode(node: any, titleDepth: number): string {

@@ -40,6 +40,14 @@ const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
 const CORP_CODE_RE = /^\d{8}$/;
 const STOCK_CODE_RE = /^\d{6}$/;
 
+// 영문 corp_name 으로 등록된 한국 상장사 — 한글 query 로 LIKE 매칭이 안 되어
+// 자회사로 잘못 resolve 되는 케이스 방어. corp_code 는 OpenDART corpCode.xml 검증 필요.
+// "현대차" 같은 약어도 자회사 우선 정렬되는 케이스라 alias 에 포함.
+const KOREAN_ALIAS: Record<string, string> = {
+  네이버: "00266961", // NAVER
+  현대차: "00164742", // 현대자동차
+};
+
 export class CorpCodeResolver {
   private readonly cacheDir: string;
   private readonly dbPath: string;
@@ -98,11 +106,18 @@ export class CorpCodeResolver {
     }
   }
 
-  /** 키워드로 회사 검색. 상장사 → 완전일치 → 부분일치 순 정렬. */
+  /** 키워드로 회사 검색. alias → 상장사 → 완전일치 → 접두사 → 짧은 이름 → 낮은 종목코드 순. */
   search(keyword: string, limit = 10): CorpRecord[] {
     const db = this.requireDb();
     const k = keyword.trim();
     if (!k) return [];
+
+    // 1. 한글 alias 우선: 영문등록 한국 상장사가 LIKE 매칭에서 누락되는 케이스 방어
+    const aliasCode = KOREAN_ALIAS[k];
+    let aliased: CorpRecord | undefined;
+    if (aliasCode) aliased = this.byCorpCode(aliasCode);
+
+    // 2. 일반 LIKE 검색. 동률 정렬 시 stock_code ASC 추가 (낮은 종목코드 = 오래된 대형사 휴리스틱).
     const like = `%${k}%`;
     const rows = db
       .prepare(
@@ -115,11 +130,20 @@ export class CorpCodeResolver {
            CASE WHEN corp_name = ? THEN 0
                 WHEN corp_name LIKE ? THEN 1
                 ELSE 2 END,
-           length(corp_name) ASC
+           length(corp_name) ASC,
+           CASE WHEN stock_code IS NULL OR stock_code = '' THEN 1 ELSE 0 END,
+           stock_code ASC
          LIMIT ?`,
       )
       .all(like, like, k, `${k}%`, limit) as CorpRecord[];
-    return rows.map(normalize);
+    const normalized = rows.map(normalize);
+
+    // alias 결과를 1위로 prepend (중복 제거)
+    if (aliased) {
+      const others = normalized.filter((r) => r.corp_code !== aliased!.corp_code);
+      return [aliased, ...others].slice(0, limit);
+    }
+    return normalized;
   }
 
   byStockCode(code: string): CorpRecord | undefined {
