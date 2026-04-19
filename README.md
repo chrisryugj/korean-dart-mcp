@@ -441,6 +441,16 @@ npx -y korean-dart-mcp setup
 
 지원: Claude Desktop / Claude Code / Cursor / VS Code / Windsurf / Gemini CLI / Zed / Antigravity.
 
+> **`MODULE_NOT_FOUND` / `Cannot find module ...\build\index.js` 가 뜨면**: 과거에 깨진 글로벌 설치가 남아있는 상태입니다. 아래 중 하나로 해결:
+> ```powershell
+> # A. 글로벌 구버전 제거 후 재시도 (Windows/Mac/Linux 공통)
+> npm uninstall -g korean-dart-mcp
+> npx -y korean-dart-mcp@latest setup
+>
+> # B. 또는 글로벌 무시하고 항상 최신 받아오기
+> npx --yes --package=korean-dart-mcp@latest korean-dart-mcp setup
+> ```
+
 ---
 
 ### 방법 1: Claude Code 플러그인 (한 줄 설치)
