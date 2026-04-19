@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.9.2] - 2026-04-19
+
+설치 경험 개선. 한 줄 마법사로 macOS / Linux / Windows 모두 대응.
+
+### Added
+- **`npx -y korean-dart-mcp setup`** — 대화형 설치 마법사. OpenDART 인증키 입력 → 8개 AI 클라이언트 자동 감지 (Claude Desktop / Claude Code / Cursor / VS Code / Windsurf / Gemini CLI / Zed / Antigravity) → 설정 파일 자동 패치. `[감지됨]` 배지로 실제 설치된 클라이언트 구분.
+- **Windows `cmd /c npx` 자동 래핑** — Windows 에선 `command: "cmd"`, `args: ["/c", "npx", ...]` 로 자동 생성. Claude Desktop 이 `.cmd` 확장자를 해석하지 못해 `npx not found` 나던 이슈 원천 차단.
+- **README 상단 "30초 설치" 섹션** — 수동 JSON 편집 없이 설치하도록 가장 눈에 띄는 위치에 마법사 소개.
+
 ## [0.9.1] - 2026-04-18
 
 프로덕션 publish 직전 보안·품질 하드닝. 기능 변경 없음, API 완전 호환.

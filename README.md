@@ -14,6 +14,25 @@ English documentation → [README-EN.md](README-EN.md)
 
 ---
 
+## ⚡ 30초 설치 — 한 줄로 끝
+
+**macOS / Linux / Windows 공용**. Node.js 20.19+ 만 깔려있으면 됩니다.
+
+```bash
+npx -y korean-dart-mcp setup
+```
+
+대화형 마법사가 띄웁니다:
+1. OpenDART 인증키 입력 (없으면 Enter — 나중에 설정 가능, [여기서 무료 발급](https://opendart.fss.or.kr/))
+2. 사용 중인 AI 클라이언트 번호 선택 (Claude Desktop / Cursor / Claude Code / Windsurf / VS Code / Gemini CLI / Zed / Antigravity — 설치된 건 `[감지됨]` 표시)
+3. 설정 파일 자동 패치 → 클라이언트 재시작
+
+Windows 도 자동으로 `cmd /c npx` 래핑해줘서 `npx not found` 이슈 해결됨. 수동 JSON 편집 불필요.
+
+> 수동 설정을 원하면 아래 [설치 및 사용법](#설치-및-사용법) 섹션 참고.
+
+---
+
 ## v0.9 — 무엇이 새로운가
 
 - **`get_xbrl format="markdown_full"`** — presentation/calculation linkbase 를 파싱해 **전체 계정 + 계층 구조 + 합산 검증**. 기존 `markdown` 의 whitelist 50태그 대비 BS 50+ / IS 15+ / CF 10+ 전부 커버. 금융지주 `DX` prefix 등 업종별 택소노미 자동 대응. 6MB XBRL → ~30-60KB 마크다운.
@@ -412,7 +431,19 @@ DART XML 원문(`download_document(format=markdown)`) 도 자체 파서로 headi
 
 ---
 
-### 방법 0: Claude Code 플러그인 (한 줄 설치)
+### 방법 0: `setup` 마법사 (추천, 30초)
+
+```bash
+npx -y korean-dart-mcp setup
+```
+
+대화형으로 API 키 입력 → 클라이언트 감지 → 설정 파일 자동 패치. macOS / Linux / Windows 공용. Windows 에선 `cmd /c npx` 래핑까지 자동 처리. 수동 JSON 편집 불필요.
+
+지원: Claude Desktop / Claude Code / Cursor / VS Code / Windsurf / Gemini CLI / Zed / Antigravity.
+
+---
+
+### 방법 1: Claude Code 플러그인 (한 줄 설치)
 
 [Claude Code](https://docs.claude.com/en/docs/claude-code) 사용자는 marketplace 등록 후 `/plugin` 으로 설치하면 끝.
 
@@ -425,7 +456,7 @@ DART XML 원문(`download_document(format=markdown)`) 도 자체 파서로 headi
 
 ---
 
-### 방법 1: Claude Desktop / Cursor / Windsurf (가장 쉬움)
+### 방법 2: Claude Desktop / Cursor / Windsurf (수동 설정)
 
 **사전 준비**: [Node.js 20.19.0 이상](https://nodejs.org) 설치 (LTS 권장).
 
@@ -478,7 +509,7 @@ DART XML 원문(`download_document(format=markdown)`) 도 자체 파서로 headi
 
 ---
 
-### 방법 2: 내 컴퓨터에 직접 설치
+### 방법 3: 내 컴퓨터에 직접 설치 (글로벌)
 
 ```bash
 npm install -g korean-dart-mcp
