@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/chrisryugj-korean-dart-mcp-badge.png)](https://mseep.ai/app/chrisryugj-korean-dart-mcp)
+
 # Korean DART MCP
 
 **OpenDART 83개 API를 15개 도구로.** 공시·재무·지분·XBRL + **버핏급 애널리스트 프레임(내부자 시그널·회계 리스크·퀄리티 체크리스트)** + **HWP/PDF 첨부 마크다운화**를 AI 어시스턴트에서 바로 사용.
