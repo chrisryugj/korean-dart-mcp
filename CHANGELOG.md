@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.9.3] - 2026-06-11
+
+### Changed — kordoc 2.4.0 → 3.0.0 (첨부 파서 엔진 업그레이드)
+
+공시 첨부(HWP/HWPX/PDF/DOCX/XLSX → 마크다운, `get_attachments` extract 모드) 파싱 엔진 kordoc을 v3.0.0으로 업그레이드. API 변경 없음(`parse()` 그대로).
+
+- HWPX 텍스트 재현율 99.998%, 표 구조 정확일치 100% (중첩표 포함) — 재무제표·사업보고서류 표 추출 품질 향상
+- 환각률(phantom) 0.006%, PDF consensus coverage 99.16%
+- HWP5 BinData 이미지 추출, 한컴 PUA 기호 매핑, 머리말/각주/하이퍼링크 처리 강화
+
 ## [0.9.2] - 2026-04-19
 
 설치 경험 개선. 한 줄 마법사로 macOS / Linux / Windows 모두 대응.
