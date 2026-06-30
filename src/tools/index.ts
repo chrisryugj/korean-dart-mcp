@@ -24,6 +24,10 @@ import { insiderSignalTool } from "./insider-signal.js";
 import { disclosureAnomalyTool } from "./disclosure-anomaly.js";
 import { buffettQualitySnapshotTool } from "./buffett-quality-snapshot.js";
 import { getAttachmentsTool } from "./get-attachments.js";
+// + 커버리지 확장 (DS006 증권신고서 / DS003 재무지표 / 범용 패스스루)
+import { getSecuritiesFilingTool } from "./get-securities-filing.js";
+import { getFinancialIndicatorsTool } from "./get-financial-indicators.js";
+import { dartRawTool } from "./dart-raw.js";
 
 export type ToolContext = ToolCtx;
 export type ToolDefinition = ToolDef;
@@ -70,4 +74,8 @@ export const TOOL_REGISTRY: ToolDef[] = [
   disclosureAnomalyTool,
   buffettQualitySnapshotTool,
   getAttachmentsTool,
+  // 커버리지 확장 (+3)
+  getSecuritiesFilingTool,
+  getFinancialIndicatorsTool,
+  dartRawTool,
 ];
