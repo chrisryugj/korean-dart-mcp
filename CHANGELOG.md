@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### Added — 커버리지 확장: DS006 증권신고서 · DS003 재무지표 · 범용 패스스루 (도구 15→18)
+
+OpenDART 85개 op 전수 도달(이전 73 → 85). 자주 쓰는 영역은 enum 도구로, 나머지/미래 op 는 패스스루로.
+
+- **`get_securities_filing`** — DS006 증권신고서 6종 enum(지분/채무/예탁·합병·분할·교환이전). 다중 group(일반사항·인수인·자금사용목적 등) 정규화. **6종 전부 실데이터 파싱 검증**(미래에셋·대한항공·썸에이지·한화에어로·Captivision·에스앤케이).
+- **`get_financial_indicators`** — DS003 주요 재무지표(수익성·안정성·성장성·활동성). 1개사=`fnlttSinglIndx`, 2개사+=`fnlttCmpnyIndx`. `category=all` 이면 4분류 병렬 호출 후 병합. 지표×회사 **피벗 + 마크다운 표** 출력.
+- **`dart_raw`** — 임의 op 범용 패스스루. **85개 + 미래 신규 op 100% 도달**. op 카탈로그·corp_code 형식 경고(아래 quirk 방어).
+- `scripts/smoke-85ops.mjs` — 85개 op 전수 호출 스모크(실측 **85/85 PASS**).
+- OpenDART quirk 방어: ① 결과 1건이 배열 대신 객체로 오는 경우(`toArray`), ② corp_code 오류 시 에러가 아니라 `status 013`(침묵 실패)로 오는 경우 → 힌트/경고로 가시화.
+
 ## [0.9.3] - 2026-06-11
 
 ### Changed — kordoc 2.4.0 → 3.0.0 (첨부 파서 엔진 업그레이드)
