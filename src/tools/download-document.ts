@@ -47,34 +47,44 @@ export const downloadDocumentTool = defineTool({
       rcept_no: args.rcept_no,
     });
     const files = await extractZipEntries(buf);
-    const xmlFile = files.find((f) => /\.xml$/i.test(f.name));
-    if (!xmlFile) {
+    // DART 는 첨부문서를 **별도 XML 엔트리**로 넣는다(감사보고서 + 재무제표 등).
+    // 첫 엔트리만 변환하면 나머지가 조용히 사라진다 — 사용자에겐 "원문에 있는 표가
+    // 마크다운에서 누락"으로 보인다 (#3). 모든 XML 엔트리를 파일명 머리글과 함께 잇는다.
+    const xmlFiles = files.filter((f) => /\.xml$/i.test(f.name));
+    if (!xmlFiles.length) {
       throw new Error(
         `원문 XML 을 찾지 못했습니다. 반환된 파일: ${files.map((f) => f.name).join(", ")}`,
       );
     }
     // DART 원문은 EUC-KR 로 인코딩된 경우가 많음 → XML 선언에서 인코딩 감지
-    const xml = decodeXml(xmlFile.data);
+    const docs = xmlFiles.map((f) => ({ name: f.name, xml: decodeXml(f.data) }));
 
-    let content: string;
-    if (args.format === "raw") {
-      content = xml;
-    } else if (args.format === "text") {
-      content = xml
-        .replace(/<[^>]+>/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-    } else {
-      content = dartXmlToMarkdown(xml);
-    }
+    const render = (xml: string): string => {
+      if (args.format === "raw") return xml;
+      if (args.format === "text") {
+        return xml
+          .replace(/<[^>]+>/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+      }
+      return dartXmlToMarkdown(xml);
+    };
 
+    // 엔트리가 하나뿐인 흔한 경우엔 머리글을 붙이지 않는다 (기존 출력 그대로).
+    const content =
+      docs.length === 1
+        ? render(docs[0].xml)
+        : docs.map((d) => `<!-- ${d.name} -->\n${render(d.xml)}`).join("\n\n");
+
+    const rawCharCount = docs.reduce((n, d) => n + d.xml.length, 0);
     const truncated = content.length > args.truncate_at;
     return {
       rcept_no: args.rcept_no,
-      file: xmlFile.name,
+      file: xmlFiles[0].name,
+      files: xmlFiles.map((f) => f.name),
       format: args.format,
-      size_bytes: xmlFile.data.length,
-      raw_char_count: xml.length,
+      size_bytes: xmlFiles.reduce((n, f) => n + f.data.length, 0),
+      raw_char_count: rawCharCount,
       char_count: content.length,
       truncated,
       content: truncated ? content.slice(0, args.truncate_at) : content,

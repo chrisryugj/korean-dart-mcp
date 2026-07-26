@@ -14,7 +14,9 @@
     "watch": "tsc --watch",
     "start": "node build/index.js",
     "cli": "node build/cli.js",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "keywords": [
     "mcp",
@@ -48,7 +50,8 @@
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.19.3",
     "@types/yauzl": "^2.10.3",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
   },
   "files": [
     "build",

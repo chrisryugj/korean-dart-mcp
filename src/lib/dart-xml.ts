@@ -52,7 +52,7 @@ export function dartXmlToMarkdown(xml: string): string {
   // 들어가 있어 xmldom 의 well-formedness 검사가 ParseError 로 fatal-throw 한다.
   // xmldom errorHandler 옵션은 warning/error 만 silence 가능하고 fatalError 는 throw 됨.
   // → 비-ASCII 로 시작하는 태그는 모두 entity escape 해서 텍스트로 강등시킨다.
-  const sanitized = sanitizeNonAsciiTags(xml);
+  const sanitized = sanitizeNonAsciiTags(decodeHtmlEntities(xml));
   const silentHandler = () => {};
   let doc: any;
   try {
@@ -68,6 +68,17 @@ export function dartXmlToMarkdown(xml: string): string {
   const root = doc?.documentElement;
   if (!root) return "";
   return convertNode(root, 1).replace(/\n{3,}/g, "\n\n").trim();
+}
+
+/**
+ * XML 이 기본 선언하지 않는 HTML 명명 엔티티를 미리 푼다.
+ *
+ * DART 마크업은 HTML 계열이라 `&nbsp;` 로 칸을 맞춘다(공시 1건에서 332회 관측).
+ * XML 파서는 이걸 **정의되지 않은 엔티티**로 보고 그대로 두기 때문에, 손대지 않으면
+ * 마크다운 표 셀에 `과&nbsp;&nbsp;목` 같은 원문이 그대로 실려 나간다.
+ */
+function decodeHtmlEntities(xml: string): string {
+  return xml.replace(/&nbsp;/g, " ");
 }
 
 /**
