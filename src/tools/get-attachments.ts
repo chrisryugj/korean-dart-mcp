@@ -17,10 +17,17 @@ import { z } from "zod";
 import { parse as kordocParse } from "kordoc";
 import { defineTool } from "./_helpers.js";
 import { safeUnzipToMemory } from "../utils/safe-zip.js";
+import { VERSION } from "../version.js";
 
-const USER_AGENT =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36";
+// 브라우저를 사칭하지 않고 도구를 그대로 식별한다. 운영자가 로그에서 트래픽 주체를
+// 확인하고 필요하면 차단할 수 있어야 한다.
+const USER_AGENT = `korean-dart-mcp/${VERSION} (+https://github.com/chrisryugj/korean-dart-mcp)`;
 const DART_ORIGIN = "https://dart.fss.or.kr";
+
+// 주의: 아래 뷰어/다운로드 경로는 dart.fss.or.kr/robots.txt 가 크롤러에 대해
+// Disallow 로 지정한 경로다(/dsaf001/main.do, /pdf/download/). 이 도구는 사용자가
+// 지정한 단일 공시(rcept_no)의 첨부목록을 조회할 때만 호출하며, 목록 순회나 대량
+// 수집에 사용해서는 안 된다. 공시 원문·재무 데이터는 공식 OpenDART API를 쓴다.
 
 const Input = z
   .object({
@@ -190,7 +197,10 @@ export const getAttachmentsTool = defineTool({
   description:
     "공시 첨부파일(HWP/PDF/DOCX/XLSX)을 목록 조회(mode=list) 하거나 다운받아 마크다운으로 추출(mode=extract). " +
     "DART 뷰어 HTML 스크래핑 기반 — OpenDART 표준 API 에 첨부 엔드포인트가 없어 공식 뷰어를 통해 접근. " +
-    "extract 모드는 kordoc 엔진으로 HWP/HWPX/PDF/DOCX/XLSX → 마크다운 변환.",
+    "extract 모드는 kordoc 엔진으로 HWP/HWPX/PDF/DOCX/XLSX → 마크다운 변환. " +
+    "주의: 이 경로는 DART robots.txt 가 크롤러에 Disallow 로 지정한 뷰어 경로다. " +
+    "사용자가 지정한 개별 공시 1건에만 사용하고, 공시 목록 순회나 대량 수집에는 쓰지 말 것. " +
+    "재무·공시 데이터는 공식 OpenDART API 도구(get_financials 등)를 우선 사용한다.",
   input: Input,
   handler: async (_ctx, args) => {
     const info = await listAttachments(args.rcept_no);
