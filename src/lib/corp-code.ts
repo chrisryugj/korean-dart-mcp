@@ -11,7 +11,7 @@
  *              <modify_date>...</modify_date></list>
  */
 
-import { mkdirSync, existsSync, unlinkSync } from "node:fs";
+import { mkdirSync, existsSync, unlinkSync, renameSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import Database from "better-sqlite3";
@@ -239,16 +239,29 @@ function text(parent: { getElementsByTagName(tag: string): { length: number; [i:
   return t.trim();
 }
 
-function buildDatabase(path: string, records: CorpRecord[]): Database.Database {
-  if (existsSync(path)) {
-    try {
-      unlinkSync(path);
-    } catch {
-      /* ignore — 새 DB 생성 시 덮어써짐 */
-    }
+/** 실패해도 무시하는 삭제 — 임시 파일 정리와 옛 판본이 남긴 WAL 사이드카 청소에만 쓴다. */
+function discard(path: string): void {
+  try {
+    if (existsSync(path)) unlinkSync(path);
+  } catch {
+    /* 다른 프로세스가 잡고 있으면 그대로 둔다 */
   }
-  const db = new Database(path);
-  db.pragma("journal_mode = WAL");
+}
+
+/**
+ * 캐시 DB 를 새로 만든다.
+ *
+ * 목적지에 바로 쓰지 않고 임시 파일에 완성한 뒤 원자적으로 옮긴다. MCP 서버는 여러 개가
+ * 동시에 뜰 수 있고(클라이언트에 따라 기동 때마다 두 개를 띄운다), 그 인스턴스들이 같은
+ * 캐시 디렉터리를 공유한다. 목적지에서 바로 작업하면 두 인스턴스가 같은 파일을 두고 다투다
+ * 한쪽이 SqliteError 로 죽고, 그 예외가 프로세스를 통째로 내려 서버 연결이 끊긴다.
+ * 교체에서 지더라도 상대가 만들어 둔 DB 가 같은 덤프에서 나온 것이므로 그대로 쓴다.
+ */
+function buildDatabase(path: string, records: CorpRecord[]): Database.Database {
+  const tmpPath = `${path}.tmp-${process.pid}-${Date.now()}`;
+  const db = new Database(tmpPath);
+  // WAL 을 쓰지 않는다 — 사이드카가 없어야 교체가 파일 하나로 끝난다.
+  db.pragma("journal_mode = DELETE");
   db.exec(`
     CREATE TABLE corps (
       corp_code TEXT PRIMARY KEY,
@@ -276,12 +289,33 @@ function buildDatabase(path: string, records: CorpRecord[]): Database.Database {
       );
     }
   });
-  tx(records);
-  db.prepare("INSERT OR REPLACE INTO meta(key, value) VALUES('updated_at', ?)").run(
-    String(Date.now()),
-  );
-  db.prepare("INSERT OR REPLACE INTO meta(key, value) VALUES('count', ?)").run(
-    String(records.length),
-  );
-  return db;
+  try {
+    tx(records);
+    db.prepare("INSERT OR REPLACE INTO meta(key, value) VALUES('updated_at', ?)").run(
+      String(Date.now()),
+    );
+    db.prepare("INSERT OR REPLACE INTO meta(key, value) VALUES('count', ?)").run(
+      String(records.length),
+    );
+    db.close();
+  } catch (err) {
+    try {
+      db.close();
+    } catch {
+      /* 이미 닫혔다 */
+    }
+    discard(tmpPath);
+    throw err;
+  }
+
+  try {
+    renameSync(tmpPath, path);
+    // 옛 판본이 WAL 로 만들어 두고 간 사이드카를 걷어낸다.
+    discard(`${path}-wal`);
+    discard(`${path}-shm`);
+  } catch {
+    // 다른 인스턴스가 먼저 교체해 파일을 잡고 있다 — 같은 덤프에서 나왔으니 그쪽 결과를 쓴다.
+    discard(tmpPath);
+  }
+  return new Database(path);
 }
