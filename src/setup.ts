@@ -8,7 +8,7 @@
 
 import { createInterface } from "node:readline/promises";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { homedir, platform } from "node:os";
 import { stdin, stdout } from "node:process";
@@ -19,6 +19,41 @@ interface ClientConfig {
   readonly format: "mcpServers" | "servers" | "context_servers";
 }
 
+/**
+ * 윈도우 Claude Desktop 설정 파일 경로.
+ *
+ * 윈도우판은 Store 판이든 공식 다운로드판이든 MSIX 패키지라, 앱 안에서 본 %APPDATA% 가
+ * 패키지 전용 위치로 리다이렉트된다. 앱이 실제로 읽는 파일은
+ * `%LOCALAPPDATA%\Packages\Claude_<publisher>\LocalCache\Roaming\Claude\` 아래에 있고,
+ * 밖에서 보이는 `%APPDATA%\Claude\` 가 아니다. 그쪽에 써 두면 설치는 성공했다고 나오는데
+ * 앱에는 서버가 나타나지 않는다.
+ *
+ * 패키지 폴더가 있으면 그것을 쓰고, 없으면(MSIX 가 아닌 설치본) 기존 경로를 그대로 쓴다.
+ */
+export function windowsClaudeConfigPath(home: string = homedir()): string {
+  const roaming = process.env["APPDATA"] ?? resolve(home, "AppData/Roaming");
+  const fallback = resolve(roaming, "Claude/claude_desktop_config.json");
+
+  const localAppData = process.env["LOCALAPPDATA"] ?? resolve(home, "AppData/Local");
+  const packagesDir = resolve(localAppData, "Packages");
+  if (!existsSync(packagesDir)) return fallback;
+
+  let names: string[];
+  try {
+    names = readdirSync(packagesDir);
+  } catch {
+    return fallback;
+  }
+
+  // 퍼블리셔 해시는 설치본마다 다를 수 있어 이름으로 못 박지 않고 접두사로 찾는다.
+  const candidates = names
+    .filter((n) => n.startsWith("Claude_"))
+    .sort()
+    .map((n) => resolve(packagesDir, n, "LocalCache/Roaming/Claude/claude_desktop_config.json"));
+
+  return candidates.find((p) => existsSync(dirname(p))) ?? fallback;
+}
+
 function detectClients(): readonly ClientConfig[] {
   const home = homedir();
   const os = platform();
@@ -26,7 +61,7 @@ function detectClients(): readonly ClientConfig[] {
 
   const claudePaths: Record<string, string> = {
     darwin: resolve(home, "Library/Application Support/Claude/claude_desktop_config.json"),
-    win32: resolve(process.env["APPDATA"] ?? resolve(home, "AppData/Roaming"), "Claude/claude_desktop_config.json"),
+    win32: windowsClaudeConfigPath(home),
     linux: resolve(home, ".config/Claude/claude_desktop_config.json"),
   };
   const claudePath = claudePaths[os];
