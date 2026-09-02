@@ -12,6 +12,7 @@
  */
 
 import { mkdirSync, existsSync, unlinkSync, renameSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import Database from "better-sqlite3";
@@ -258,11 +259,13 @@ function discard(path: string): void {
  * 교체에서 지더라도 상대가 만들어 둔 DB 가 같은 덤프에서 나온 것이므로 그대로 쓴다.
  */
 function buildDatabase(path: string, records: CorpRecord[]): Database.Database {
-  const tmpPath = `${path}.tmp-${process.pid}-${Date.now()}`;
-  const db = new Database(tmpPath);
-  // WAL 을 쓰지 않는다 — 사이드카가 없어야 교체가 파일 하나로 끝난다.
-  db.pragma("journal_mode = DELETE");
-  db.exec(`
+  const tmpPath = `${path}.tmp-${process.pid}-${randomUUID()}`;
+  let db: Database.Database | null = null;
+  try {
+    db = new Database(tmpPath);
+    // WAL 을 쓰지 않는다 — 사이드카가 없어야 교체가 파일 하나로 끝난다.
+    db.pragma("journal_mode = DELETE");
+    db.exec(`
     CREATE TABLE corps (
       corp_code TEXT PRIMARY KEY,
       corp_name TEXT NOT NULL,
@@ -274,22 +277,21 @@ function buildDatabase(path: string, records: CorpRecord[]): Database.Database {
     CREATE INDEX idx_corps_stock ON corps(stock_code) WHERE stock_code IS NOT NULL AND stock_code != '';
     CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
   `);
-  const insert = db.prepare(
-    `INSERT OR REPLACE INTO corps (corp_code, corp_name, corp_eng_name, stock_code, modify_date)
+    const insert = db.prepare(
+      `INSERT OR REPLACE INTO corps (corp_code, corp_name, corp_eng_name, stock_code, modify_date)
      VALUES (?, ?, ?, ?, ?)`,
-  );
-  const tx = db.transaction((items: CorpRecord[]) => {
-    for (const r of items) {
-      insert.run(
-        r.corp_code,
-        r.corp_name,
-        r.corp_eng_name ?? null,
-        r.stock_code ?? null,
-        r.modify_date ?? null,
-      );
-    }
-  });
-  try {
+    );
+    const tx = db.transaction((items: CorpRecord[]) => {
+      for (const r of items) {
+        insert.run(
+          r.corp_code,
+          r.corp_name,
+          r.corp_eng_name ?? null,
+          r.stock_code ?? null,
+          r.modify_date ?? null,
+        );
+      }
+    });
     tx(records);
     db.prepare("INSERT OR REPLACE INTO meta(key, value) VALUES('updated_at', ?)").run(
       String(Date.now()),
@@ -298,11 +300,14 @@ function buildDatabase(path: string, records: CorpRecord[]): Database.Database {
       String(records.length),
     );
     db.close();
+    db = null;
   } catch (err) {
-    try {
-      db.close();
-    } catch {
-      /* 이미 닫혔다 */
+    if (db) {
+      try {
+        db.close();
+      } catch {
+        /* 이미 닫혔다 */
+      }
     }
     discard(tmpPath);
     throw err;
@@ -313,9 +318,33 @@ function buildDatabase(path: string, records: CorpRecord[]): Database.Database {
     // 옛 판본이 WAL 로 만들어 두고 간 사이드카를 걷어낸다.
     discard(`${path}-wal`);
     discard(`${path}-shm`);
-  } catch {
-    // 다른 인스턴스가 먼저 교체해 파일을 잡고 있다 — 같은 덤프에서 나왔으니 그쪽 결과를 쓴다.
+  } catch (err) {
+    // 다른 인스턴스가 먼저 교체해 파일을 잡고 있으면 같은 덤프에서 나온 그쪽 결과를 쓴다.
+    // 그게 아니라 권한·경로 문제로 실패한 것이면 삼키지 않는다 — 삼키면 빈 DB 를 열어
+    // 나중에 "no such table: corps" 로 엉뚱한 곳에서 터진다.
+    if (!isUsableCache(path)) {
+      discard(tmpPath);
+      throw err;
+    }
     discard(tmpPath);
   }
   return new Database(path);
+}
+
+/** 교체에 실패했을 때, 목적지에 남은 것이 그대로 쓸 수 있는 캐시인지 본다. */
+function isUsableCache(path: string): boolean {
+  if (!existsSync(path)) return false;
+  try {
+    const db = new Database(path, { readonly: true });
+    try {
+      const row = db.prepare("SELECT value FROM meta WHERE key = 'count'").get() as
+        | { value: string }
+        | undefined;
+      return row !== undefined && db.prepare("SELECT 1 FROM corps LIMIT 1").get() !== undefined;
+    } finally {
+      db.close();
+    }
+  } catch {
+    return false;
+  }
 }

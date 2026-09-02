@@ -6,20 +6,25 @@ import { fileURLToPath } from "node:url";
 import { CorpCodeResolver } from "./corp-code.js";
 import type { DartClient } from "./dart-client.js";
 
-/** 다음 unlinkSync 호출만 실패시킨다 — 윈도우에서 남이 연 파일을 못 지우는 상황 재현용. */
-const unlinkFailure = { active: false };
+/** 윈도우에서 남이 연 파일을 지우거나 옮길 수 없는 상황을 재현하는 스위치. */
+const fsFailure = { unlink: false, rename: false };
 
 vi.mock("node:fs", async (importOriginal) => {
   const real = await importOriginal<typeof import("node:fs")>();
+  const eperm = (op: string): NodeJS.ErrnoException => {
+    const err = new Error(`EPERM: operation not permitted, ${op}`) as NodeJS.ErrnoException;
+    err.code = "EPERM";
+    return err;
+  };
   return {
     ...real,
     unlinkSync: (...args: Parameters<typeof real.unlinkSync>) => {
-      if (unlinkFailure.active) {
-        const err = new Error("EPERM: operation not permitted, unlink") as NodeJS.ErrnoException;
-        err.code = "EPERM";
-        throw err;
-      }
+      if (fsFailure.unlink) throw eperm("unlink");
       return real.unlinkSync(...args);
+    },
+    renameSync: (...args: Parameters<typeof real.renameSync>) => {
+      if (fsFailure.rename) throw eperm("rename");
+      return real.renameSync(...args);
     },
   };
 });
@@ -52,7 +57,8 @@ describe("CorpCodeResolver — 캐시 동시 재생성", () => {
   });
 
   afterEach(() => {
-    unlinkFailure.active = false;
+    fsFailure.unlink = false;
+    fsFailure.rename = false;
     vi.restoreAllMocks();
     rmSync(cacheDir, { recursive: true, force: true });
   });
@@ -63,7 +69,7 @@ describe("CorpCodeResolver — 캐시 동시 재생성", () => {
 
     // 윈도우에서는 다른 인스턴스가 열어 둔 캐시 파일을 지울 수 없다.
     // 그 상태에서 기존 파일 위에 그대로 스키마를 만들면 SqliteError 로 프로세스가 죽는다.
-    unlinkFailure.active = true;
+    fsFailure.unlink = true;
 
     const second = new CorpCodeResolver({ cacheDir, forceRefresh: true });
     await expect(second.init(fakeClient())).resolves.toBeUndefined();
@@ -101,6 +107,28 @@ describe("CorpCodeResolver — 캐시 동시 재생성", () => {
     await r.init(fakeClient());
 
     expect(existsSync(join(cacheDir, "corp_code.sqlite"))).toBe(true);
+    expect(readdirSync(cacheDir).filter((f) => f.includes(".tmp-"))).toEqual([]);
+  });
+  it("교체에 실패해도 목적지에 쓸 수 있는 캐시가 있으면 그것을 쓴다", async () => {
+    const first = new CorpCodeResolver({ cacheDir, forceRefresh: true });
+    await first.init(fakeClient());
+
+    // 다른 인스턴스가 먼저 교체해 목적지를 잡고 있는 상황.
+    fsFailure.rename = true;
+
+    const second = new CorpCodeResolver({ cacheDir, forceRefresh: true });
+    await expect(second.init(fakeClient())).resolves.toBeUndefined();
+    expect(second.search("삼성전자")[0]?.corp_code).toBe("00126380");
+    expect(readdirSync(cacheDir).filter((f) => f.includes(".tmp-"))).toEqual([]);
+  });
+
+  it("교체에 실패했는데 쓸 수 있는 캐시도 없으면 조용히 넘어가지 않는다", async () => {
+    // 권한·경로 문제로 교체가 막힌 경우다. 삼키면 빈 DB 를 열어 나중에
+    // "no such table: corps" 로 엉뚱한 곳에서 터진다.
+    fsFailure.rename = true;
+
+    const r = new CorpCodeResolver({ cacheDir, forceRefresh: true });
+    await expect(r.init(fakeClient())).rejects.toThrow(/EPERM/);
     expect(readdirSync(cacheDir).filter((f) => f.includes(".tmp-"))).toEqual([]);
   });
 });
