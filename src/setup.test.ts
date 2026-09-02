@@ -65,10 +65,30 @@ describe("windowsClaudeConfigPath", () => {
     expect(windowsClaudeConfigPath(home)).toBe(roamingFallback());
   });
 
-  it("패키지 폴더는 있지만 설정 디렉터리가 없으면 %APPDATA% 를 쓴다", () => {
-    mkdirSync(join(process.env["LOCALAPPDATA"]!, "Packages", "Claude_pzs8sxrjxfjjc"), {
-      recursive: true,
-    });
+  it("최초 설치라 설정 디렉터리가 아직 없어도 그 패키지 자리를 쓴다", () => {
+    // setup 을 처음 돌리는 사람이 정확히 이 상태다. 여기서 %APPDATA% 로 떨어지면
+    // 이 수정이 고치려는 바로 그 증상이 그대로 남는다.
+    const pkg = join(process.env["LOCALAPPDATA"]!, "Packages", "Claude_pzs8sxrjxfjjc");
+    mkdirSync(pkg, { recursive: true });
+
+    expect(windowsClaudeConfigPath(home)).toBe(
+      resolve(pkg, "LocalCache/Roaming/Claude/claude_desktop_config.json"),
+    );
+  });
+
+  it("후보가 여럿이면 설정 디렉터리가 있는 쪽을 고른다", () => {
+    const packages = join(process.env["LOCALAPPDATA"]!, "Packages");
+    mkdirSync(join(packages, "Claude_aaaaaaaaaaaaa", "LocalCache", "Roaming"), { recursive: true });
+    const live = join(packages, "Claude_zzzzzzzzzzzzz", "LocalCache", "Roaming", "Claude");
+    mkdirSync(live, { recursive: true });
+
+    expect(windowsClaudeConfigPath(home)).toBe(resolve(live, "claude_desktop_config.json"));
+  });
+
+  it("후보가 여럿인데 가릴 단서가 없으면 %APPDATA% 를 쓴다", () => {
+    const packages = join(process.env["LOCALAPPDATA"]!, "Packages");
+    mkdirSync(join(packages, "Claude_aaaaaaaaaaaaa"), { recursive: true });
+    mkdirSync(join(packages, "Claude_zzzzzzzzzzzzz"), { recursive: true });
 
     expect(windowsClaudeConfigPath(home)).toBe(roamingFallback());
   });

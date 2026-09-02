@@ -46,12 +46,27 @@ export function windowsClaudeConfigPath(home: string = homedir()): string {
   }
 
   // 퍼블리셔 해시는 설치본마다 다를 수 있어 이름으로 못 박지 않고 접두사로 찾는다.
-  const candidates = names
+  const roots = names
     .filter((n) => n.startsWith("Claude_"))
     .sort()
-    .map((n) => resolve(packagesDir, n, "LocalCache/Roaming/Claude/claude_desktop_config.json"));
+    .map((n) => resolve(packagesDir, n, "LocalCache/Roaming"));
+  if (roots.length === 0) return fallback;
 
-  return candidates.find((p) => existsSync(dirname(p))) ?? fallback;
+  const configPath = (root: string): string => resolve(root, "Claude/claude_desktop_config.json");
+
+  // 1) 앱이 이미 설정 디렉터리를 만들어 둔 후보가 가장 확실하다.
+  const withConfigDir = roots.find((r) => existsSync(resolve(r, "Claude")));
+  if (withConfigDir) return configPath(withConfigDir);
+
+  // 2) 설정은 아직 없어도 앱이 한 번이라도 돈 후보를 고른다.
+  const withRoaming = roots.find((r) => existsSync(r));
+  if (withRoaming) return configPath(withRoaming);
+
+  // 3) 최초 설치라 아무것도 없다. 후보가 하나뿐이면 그 자리를 쓴다(쓰기 단계가 디렉터리를 만든다).
+  if (roots.length === 1) return configPath(roots[0]);
+
+  // 4) 후보가 여럿인데 어느 것이 현행인지 가릴 근거가 없다 — 기존 경로를 건드리지 않는다.
+  return fallback;
 }
 
 function detectClients(): readonly ClientConfig[] {
