@@ -65,8 +65,13 @@ export class CorpCodeResolver {
 
   /** 서버 기동 시 1회 호출. 캐시 유효하면 DB만 열고 끝. */
   async init(client: DartClient): Promise<void> {
+    if (this.db) return;
     if (this.initPromise) return this.initPromise;
-    this.initPromise = this.doInit(client);
+    // 실패한 promise 를 붙들고 있지 않는다 — 다음 도구 호출 때 다시 시도한다.
+    this.initPromise = this.doInit(client).catch((err) => {
+      this.initPromise = null;
+      throw err;
+    });
     return this.initPromise;
   }
 
@@ -82,12 +87,45 @@ export class CorpCodeResolver {
     }
 
     console.error("[corp-code] 덤프 다운로드 중... (수 초 소요)");
-    const zipBuf = await client.getZip("corpCode.xml");
+    let zipBuf: Buffer;
+    try {
+      zipBuf = await client.getZip("corpCode.xml");
+    } catch (err) {
+      // DART 점검(status 800)·장애 때는 만료된 캐시라도 쓴다. 다음 기동 때 다시 받는다.
+      const stale = this.openStaleCache();
+      if (stale) {
+        this.db = stale;
+        console.error(
+          "[corp-code] 덤프 다운로드 실패, 만료된 캐시로 진행:",
+          err instanceof Error ? err.message : err,
+        );
+        return;
+      }
+      throw err;
+    }
     const xml = await extractCorpCodeXml(zipBuf);
     const records = parseCorpCodeXml(xml);
     console.error(`[corp-code] ${records.length}개 회사 적재 중...`);
     this.db = buildDatabase(this.dbPath, records);
     console.error("[corp-code] 준비 완료");
+  }
+
+  /** 만료됐더라도 읽을 수 있는 캐시 DB 를 연다. 없거나 깨졌으면 null. */
+  private openStaleCache(): Database.Database | null {
+    if (!existsSync(this.dbPath)) return null;
+    let db: Database.Database | null = null;
+    try {
+      db = new Database(this.dbPath, { readonly: false });
+      // 빈 테이블(적재 도중 끊긴 캐시)은 쓰지 않는다 — 원래 오류를 올리는 편이 낫다.
+      if (db.prepare("SELECT 1 FROM corps LIMIT 1").get() === undefined) {
+        db.close();
+        return null;
+      }
+      return db;
+    } catch {
+      db?.close();
+      return null;
+    }
   }
 
   private isCacheFresh(): boolean {
