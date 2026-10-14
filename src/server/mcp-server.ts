@@ -23,10 +23,10 @@ export function createServer(opts: ServerOptions): Server {
   const ctx: ToolContext = { client, resolver };
 
   // corp_code 덤프 선적재: 첫 도구 호출 전에 끝나있어야 함.
-  // 실패하면 각 도구가 호출될 때마다 재시도 (init() 은 동일 promise 를 재사용).
-  const initReady = resolver.init(client).catch((err) => {
+  // 실패하면 각 도구 호출 때 init() 이 다시 시도한다. 여기서 다시 던지면 도구 호출 전까지
+  // 아무도 받지 않는 거부가 되어 node 가 프로세스를 종료한다(클라이언트엔 "Server disconnected").
+  resolver.init(client).catch((err) => {
     console.error("[korean-dart-mcp] corp_code 초기화 실패:", err);
-    throw err;
   });
 
   const server = new Server(
@@ -47,7 +47,7 @@ export function createServer(opts: ServerOptions): Server {
     if (!tool) {
       throw new Error(`unknown tool: ${req.params.name}`);
     }
-    await initReady;
+    await resolver.init(client);
     const result = await tool.handler(req.params.arguments ?? {}, ctx);
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
