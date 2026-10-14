@@ -476,10 +476,12 @@ npx -y korean-dart-mcp setup
 
 | 앱 | Windows | Mac |
 |---|---|---|
-| Claude Desktop | `%APPDATA%\Claude\claude_desktop_config.json` | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+| Claude Desktop | `%LOCALAPPDATA%\Packages\Claude_<publisher>\LocalCache\Roaming\Claude\claude_desktop_config.json` (아래 참고) | `~/Library/Application Support/Claude/claude_desktop_config.json` |
 | Cursor | 프로젝트 `.cursor/mcp.json` | 프로젝트 `.cursor/mcp.json` |
 | Windsurf | 프로젝트 `.windsurf/mcp.json` | 프로젝트 `.windsurf/mcp.json` |
 | Claude Code | `~/.claude.json` 또는 프로젝트 `.mcp.json` | `~/.claude.json` 또는 프로젝트 `.mcp.json` |
+
+> **Windows 경로 주의**: Claude Desktop 은 MSIX 패키지라 `%APPDATA%` 가 패키지 전용 위치로 리다이렉트됩니다. 앱이 실제로 읽는 파일은 `%LOCALAPPDATA%\Packages\Claude_<publisher>\LocalCache\Roaming\Claude\` 아래에 있고, `%APPDATA%\Claude\` 에 써 두면 앱이 읽지 않습니다. `npx korean-dart-mcp setup` 은 이 경로를 자동으로 찾습니다.
 
 **설정 내용:**
 

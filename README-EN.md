@@ -417,10 +417,12 @@ Prompts for the OpenDART key once. 15 DART tools are live after that.
 
 | App | Windows | Mac |
 |---|---|---|
-| Claude Desktop | `%APPDATA%\Claude\claude_desktop_config.json` | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+| Claude Desktop | `%LOCALAPPDATA%\Packages\Claude_<publisher>\LocalCache\Roaming\Claude\claude_desktop_config.json` (see note) | `~/Library/Application Support/Claude/claude_desktop_config.json` |
 | Cursor | project `.cursor/mcp.json` | project `.cursor/mcp.json` |
 | Windsurf | project `.windsurf/mcp.json` | project `.windsurf/mcp.json` |
 | Claude Code | `~/.claude.json` or project `.mcp.json` | `~/.claude.json` or project `.mcp.json` |
+
+> **Windows path note**: Claude Desktop ships as an MSIX package, so `%APPDATA%` is redirected to a package-private location. The file the app actually reads lives under `%LOCALAPPDATA%\Packages\Claude_<publisher>\LocalCache\Roaming\Claude\`; anything written to `%APPDATA%\Claude\` is ignored. `npx korean-dart-mcp setup` resolves this path automatically.
 
 **Config content** (replace `YOUR_API_KEY`):
 
