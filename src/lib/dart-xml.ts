@@ -20,7 +20,7 @@
  *   COLGROUP/COL                          → 제거 (스타일 전용)
  *   나머지 (SPAN, COMPANY-NAME 등)         → 텍스트만 유지
  *
- * 병합 셀(COLSPAN/ROWSPAN) 은 마크다운 자체가 지원하지 않으므로 무시.
+ * 병합 셀(COLSPAN/ROWSPAN) 은 마크다운이 지원하지 않으므로 격자로 펼친다 — 글은 첫 칸, 덮인 칸은 빈칸.
  *
  * 타입 주석: 본 프로젝트 tsconfig 에 DOM lib 이 없어 xmldom 의 Node/Element 전역이 없다.
  *            duck-typing 으로 any 처리.
@@ -156,8 +156,11 @@ function inlineText(el: any): string {
 function renderTable(table: any): string {
   const trs = collectByTag(table, "TR");
   if (!trs.length) return "";
-  const rowTexts: string[] = [];
-  let headerSize = 0;
+  // 병합 칸(COLSPAN·ROWSPAN)은 격자로 펼친다 — 글은 첫 칸에, 덮인 칸은 빈칸. 안 펼치면 재무제표 머리 행
+  // (과목 | 제10(당)기 COLSPAN=2 | 제9(전)기 COLSPAN=2 → 3칸)이 본문 행(5칸)보다 좁아, 뷰어가 넘치는 칸을
+  // 버리고 당기 금액이 전기 머리 밑에 선다 (#3).
+  const rows: string[][] = [];
+  let covered: number[] = []; // 열마다 위 행의 ROWSPAN 이 이 행부터 더 덮는 행 수
   for (const tr of trs) {
     const kids = tr.childNodes;
     if (!kids) continue;
@@ -168,17 +171,44 @@ function renderTable(table: any): string {
       if (c.nodeType === 1 && /^(TD|TH|TU|TE)$/i.test(String(c.nodeName))) cells.push(c);
     }
     if (!cells.length) continue;
-    const row = cells.map((c) => escapeCell(inlineText(c))).join(" | ");
-    rowTexts.push(row);
-    if (headerSize === 0) headerSize = cells.length;
+    const row: string[] = [];
+    const next: number[] = [];
+    const skipCovered = () => {
+      while ((covered[row.length] ?? 0) > 0) {
+        next[row.length] = covered[row.length] - 1;
+        row.push("");
+      }
+    };
+    for (const c of cells) {
+      skipCovered();
+      const colSpan = spanOf(c, "COLSPAN");
+      const rowSpan = spanOf(c, "ROWSPAN");
+      for (let k = 0; k < colSpan; k++) {
+        next[row.length] = rowSpan - 1;
+        row.push(k === 0 ? escapeCell(inlineText(c)) : "");
+      }
+    }
+    skipCovered();
+    // 행 끝 너머에 떨어져 남은 덮인 칸도 이 행 몫을 줄인다(빈칸은 아래에서 너비를 맞추며 채운다).
+    for (let col = row.length; col < covered.length; col++) {
+      if ((covered[col] ?? 0) > 0) next[col] = covered[col] - 1;
+    }
+    covered = next;
+    rows.push(row);
   }
-  if (!rowTexts.length) return "";
-  const separator = Array(headerSize).fill("---").join(" | ");
+  if (!rows.length) return "";
+  const width = Math.max(...rows.map((r) => r.length));
+  const line = (r: string[]) => `| ${[...r, ...Array(width - r.length).fill("")].join(" | ")} |`;
   return [
-    `\n| ${rowTexts[0]} |`,
-    `| ${separator} |`,
-    ...rowTexts.slice(1).map((r) => `| ${r} |`),
+    `\n${line(rows[0])}`,
+    `| ${Array(width).fill("---").join(" | ")} |`,
+    ...rows.slice(1).map(line),
   ].join("\n");
+}
+
+function spanOf(cell: any, attr: string): number {
+  const n = parseInt(cell.getAttribute?.(attr) || cell.getAttribute?.(attr.toLowerCase()) || "1", 10);
+  return n > 1 ? n : 1;
 }
 
 function collectByTag(parent: any, tag: string): any[] {

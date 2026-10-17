@@ -72,6 +72,30 @@ describe("dartXmlToMarkdown — OpenDART 원문의 LIBRARY·TE 구조 (#3)", () 
     expect(md).toMatch(/^\| 영업이익 \|.*1,389,584,502.*\|$/m);
   });
 
+  it("병합 머리 칸을 펼쳐 당기·전기 금액이 제 머리 밑에 선다", () => {
+    // 머리 행은 과목 | 제10(당)기 COLSPAN=2 | 제9(전)기 COLSPAN=2 → 3칸, 본문 행은 5칸이다.
+    // 안 펼치면 뷰어가 넘치는 칸을 버려 당기 금액이 전기 머리 밑에 선다.
+    expect(md).toContain("| 과 목 | 제10(당)기 |  | 제9(전)기 |  |\n| --- | --- | --- | --- | --- |");
+    expect(md).toContain("| 매출액(주석2) |  | 52,034,809,530 |  | 32,254,850,607 |");
+  });
+
+  it("모든 표 행의 칸 수가 머리 구분선과 같다", () => {
+    const cells = (l: string) => l.split(/(?<!\\)\|/).length - 2;
+    const tables: string[][] = [];
+    let inTable = false;
+    for (const l of md.split("\n")) {
+      const isRow = l.startsWith("|");
+      if (isRow && !inTable) tables.push([]);
+      if (isRow) tables[tables.length - 1].push(l);
+      inTable = isRow;
+    }
+    expect(tables.length).toBeGreaterThan(1);
+    for (const lines of tables) {
+      const width = cells(lines[1]);
+      for (const l of lines) expect(cells(l), l).toBe(width);
+    }
+  });
+
   it("LIBRARY 밖의 주석 표는 종전대로 남는다", () => {
     expect(md).toContain("12. 부가가치계산");
     expect(md).toMatch(/^\| 합 계 \| 6,374,183 \| 5,853,951 \|$/m);
@@ -90,5 +114,23 @@ describe("dartXmlToMarkdown — 기본 동작", () => {
     );
     expect(md).toContain("| 과목 | 금액 |");
     expect(md).toContain("| --- | --- |");
+  });
+
+  it("ROWSPAN·COLSPAN 으로 덮인 칸을 빈칸으로 채워 열을 지킨다", () => {
+    const md = dartXmlToMarkdown(
+      "<DOCUMENT><TABLE><TBODY>" +
+        '<TR><TD ROWSPAN="2">구분</TD><TD COLSPAN="2">금액</TD><TD ROWSPAN="2">비고</TD></TR>' +
+        "<TR><TD>당기</TD><TD>전기</TD></TR>" +
+        "<TR><TD>매출</TD><TD>10</TD><TD>9</TD><TD>-</TD></TR>" +
+        "</TBODY></TABLE></DOCUMENT>",
+    );
+    expect(md).toContain(
+      [
+        "| 구분 | 금액 |  | 비고 |",
+        "| --- | --- | --- | --- |",
+        "|  | 당기 | 전기 |  |",
+        "| 매출 | 10 | 9 | - |",
+      ].join("\n"),
+    );
   });
 });
