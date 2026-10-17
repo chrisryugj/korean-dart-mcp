@@ -35,6 +35,49 @@ describe("dartXmlToMarkdown — 재무제표 표 보존 (#3)", () => {
   });
 });
 
+/**
+ * 위 픽스처는 DART 웹 뷰어의 HTML 이라 download_document 가 실제로 받는 원문과 구조가 다르다.
+ * 이 픽스처는 OpenDART document.xml ZIP(같은 공시의 20260406003197_00760.xml)에서 행만 줄여
+ * 발췌했다. 원문에서는 감사보고서·재무제표가 <LIBRARY> 로 감싸여 있고 재무제표 본문 셀이
+ * <TE> 다. 변환기가 LIBRARY 를 통째로 버리고 TE 를 셀로 치지 않아 재무제표 4종이 사라졌다 (#3).
+ */
+const apiFixture = readFileSync(
+  fileURLToPath(new URL("./__fixtures__/audit-report-opendart-excerpt.xml", import.meta.url)),
+  "utf8",
+);
+
+describe("dartXmlToMarkdown — OpenDART 원문의 LIBRARY·TE 구조 (#3)", () => {
+  const md = dartXmlToMarkdown(apiFixture);
+
+  it("픽스처가 API 원문 구조를 담고 있다", () => {
+    // 이 전제가 깨지면 아래 검사는 아무것도 지키지 못한다(뷰어 픽스처가 그랬다).
+    expect(apiFixture).toContain("<LIBRARY>");
+    expect(apiFixture).toMatch(/<TE\b/);
+  });
+
+  it("원문의 TITLE 이 모두 마크다운 제목으로 남는다", () => {
+    const titles = [...apiFixture.matchAll(/<TITLE\b[^>]*>([^<]*)<\/TITLE>/g)].map((m) =>
+      m[1].replace(/\s+/g, " ").trim(),
+    );
+    const headings = md
+      .split("\n")
+      .filter((l) => /^#{1,6} /.test(l))
+      .map((l) => l.replace(/^#+ /, ""));
+    expect(titles).toContain("손 익 계 산 서");
+    expect(headings).toEqual(expect.arrayContaining(titles));
+  });
+
+  it("손익계산서 TE 행이 금액과 함께 표 행으로 렌더된다", () => {
+    expect(md).toMatch(/^\| 매출액\(주석2\) \|.*52,034,809,530.*32,254,850,607.*\|$/m);
+    expect(md).toMatch(/^\| 영업이익 \|.*1,389,584,502.*\|$/m);
+  });
+
+  it("LIBRARY 밖의 주석 표는 종전대로 남는다", () => {
+    expect(md).toContain("12. 부가가치계산");
+    expect(md).toMatch(/^\| 합 계 \| 6,374,183 \| 5,853,951 \|$/m);
+  });
+});
+
 describe("dartXmlToMarkdown — 기본 동작", () => {
   it("빈 입력·깨진 입력에 던지지 않는다", () => {
     expect(dartXmlToMarkdown("")).toBe("");

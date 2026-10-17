@@ -10,10 +10,12 @@
  *   SECTION-1/2/3                         → 하위 TITLE 의 heading level 제어
  *   TITLE                                 → ##/###/#### (상위 SECTION 깊이에 따라)
  *   TABLE, THEAD, TBODY, TR, TH, TD, TU  → 마크다운 테이블
+ *   TE                                    → 표 셀 (재무제표 본문, 계정코드 ACODE 를 단 TD)
  *   P                                     → 단락
  *   PGBRK                                 → 수평선
  *   A                                     → 인라인 텍스트 (href 없음)
- *   IMAGE/IMG/LIBRARY                     → 제거
+ *   IMAGE/IMG                             → 제거
+ *   LIBRARY                               → 컨테이너 (감사보고서·재무제표 본문을 감싼다, 자식 그대로 변환)
  *   SUMMARY/EXTRACTION                    → 메타 제거
  *   COLGROUP/COL                          → 제거 (스타일 전용)
  *   나머지 (SPAN, COMPANY-NAME 등)         → 텍스트만 유지
@@ -36,7 +38,7 @@ const SKIP_TAGS = new Set([
   "IMAGE",
   "IMG",
   "IMG-CAPTION",
-  "LIBRARY",
+  // LIBRARY 는 넣지 말 것 — 감사보고서·재무제표 4종 같은 본문을 감싸는 컨테이너다 (#3).
   "FORMULA-VERSION",
 ]);
 
@@ -162,7 +164,8 @@ function renderTable(table: any): string {
     const cells: any[] = [];
     for (let i = 0; i < kids.length; i++) {
       const c = kids[i];
-      if (c.nodeType === 1 && /^(TD|TH|TU)$/i.test(String(c.nodeName))) cells.push(c);
+      // TE: 재무제표 본문 셀(계정코드 ACODE 를 단 TD). 빠지면 TE 만으로 된 행이 통째로 사라진다 (#3).
+      if (c.nodeType === 1 && /^(TD|TH|TU|TE)$/i.test(String(c.nodeName))) cells.push(c);
     }
     if (!cells.length) continue;
     const row = cells.map((c) => escapeCell(inlineText(c))).join(" | ");
