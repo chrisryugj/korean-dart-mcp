@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.3] - 2026-10-26
+
+### Security — 의존성 취약점 정리
+
+- kordoc 3.x → 4.24.8. kordoc 3.x 가 끌고 오던 zod 3(GHSA-mrhx-c7xc-m3w5, zod 3 계열엔 수정판 없음)이 빠진다. `get_attachments` 가 쓰는 `parse()` 결과(`success`·`markdown`·`fileType`·`warnings`·`outline`·`metadata`)는 그대로다
+- zod `^3.25.76 || ^4.0.0` → `^4.6.7`, 개발용 vitest 4.1.12, 하위 의존성은 `npm audit fix`
+- `npm audit` 0건. 도구 18개 tools/list 는 0.10.2 와 바이트 단위로 같다. vitest 29건 통과
+
 ## [0.10.2] - 2026-10-18
 
 ### Fixed — `download_document` 가 실제 원문에서 재무제표 4종을 흘리던 것 (#3, @ahnbu)
